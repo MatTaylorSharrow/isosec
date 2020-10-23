@@ -5,3 +5,5 @@ CREATE USER IF NOT EXISTS 'isosec_api'@'localhost' IDENTIFIED BY 'isosec-default
 GRANT SELECT ON * TO 'isosec_api'@'localhost';
 GRANT INSERT ON AuditLog TO 'isosec_api'@'localhost';
 
+FLUSH PRIVILEGES;
+
