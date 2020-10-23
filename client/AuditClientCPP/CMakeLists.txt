@@ -11,6 +11,9 @@ set(CMAKE_AUTOUIC ON)
 # Find the QtWidgets library
 find_package(Qt5Widgets CONFIG REQUIRED)
 
+find_package(Boost COMPONENTS system ...)
+
+
 set(auditclientcpp_SRC
   src/main.cpp
   src/auditclientcpp.cpp
@@ -24,3 +27,6 @@ target_link_libraries(auditclientcpp Qt5::Widgets)
 
 # Install the executable
 install(TARGETS auditclientcpp DESTINATION bin)
+
+
+add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY)
