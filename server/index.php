@@ -1,33 +1,5 @@
 <?php
 
-// Rest Entities
-// - / - list of available entities and actions
-//   /AuditLog - POST
-
-/* request json
-{
-	"customer": "string",
-	"product": "string", 
-	"event_timestamp": "datetime", 
-	"device_id": "string"
-}
-*/
-
-// response codes
-// 200 - All OK
-//
-
-/* success response json
-{
-}
-*/
-
-/* error response json 
-{
-
-}
-*/
-
 function debug($var) {
 	echo '<pre>';
 	print_r($var);
@@ -55,11 +27,20 @@ class App {
 	private $allowed_methods = array();
 	private $action_map = array();
 
+	private $config = null;
+
+	private $conn = null;
+
 	public function __construct($server, $get, $post, $env) {
 		$this->server = $server;
 		$this->get = $get;
 		$this->post = $post;
 		$this->env = $env;
+	}
+
+	public function __destruct() {
+		// clean up the DB connection;
+		$this->cleanup();
 	}
 
 	/**
@@ -82,9 +63,82 @@ class App {
 	 * Start the processing of the request
 	 */
 	public function begin() {
-		$action = $this->createAction();
+
+		// load config
+		$this->config = parse_ini_file('../conf/server-app.ini',  true);
+err($this->config);
+
+		if ( ! $this->config) {
+			echo 'Could not load config file. Aborting';
+			return;
+		}
+
+		if ( ! $this->connectToDatabase()) {
+			$action = new RequestNotAllowedAction();
+		}
+
 		$action->process();
 		$action->generateResponse();
+
+		$this->cleanup();
+	}
+
+	/**
+	 * Get the data sent with a request when in json or xml format 
+	 *
+	 * @return array
+	 */
+	public function getRawRequestInput() {
+		if (trim($this->server['CONTENT_TYPE']) == 'application/json') {
+			$json = file_get_contents('php://input');
+			$data = json_decode($json);
+			return $data;
+		}
+
+		// xml etc
+		
+		return array();
+	}
+
+
+	/**
+	 * Clean up any resources
+	 */
+	private function cleanup() {
+		// clean up DB connection
+		if (null !== $this->conn) {
+			$this->conn->close();
+			$this->conn = null;
+		}
+	}
+
+	/**
+	 * Connect to the database using mysqli.  Connection details come from the 
+	 * config file.
+	 */
+	public function connectToDatabase() {
+		$conf = $this->config['database'];
+		$conn = new mysqli($conf['host'], $conf['database'], $conf['user'], $conf['password']);
+
+		if ($conn->connect_error) {
+			return false;
+		}
+
+		$this->conn = $conn;
+	}
+
+	/**
+	 * Obtain a DB connection reference.
+	 */
+	public function getDbConn() {
+		return $this->conn;
+	}
+
+	/**
+	 * Help method to check for Db connection
+	 */
+	public function hasDbConnection() {
+		return ($this->conn !== null);
 	}
 
 	/**
@@ -98,8 +152,8 @@ class App {
 
 			if (in_array($this->server['REQUEST_METHOD'], $methods)) {
 				// it's a valid request
-				$actionClass = $this->action_map[$this->server['REQUEST_URI']];
-				$action = new $actionClass($this);
+				$action_class = $this->action_map[$this->server['REQUEST_URI']];
+				$action = new $action_class($this);
 				return $action;
 			}
 		}
@@ -117,6 +171,9 @@ interface Action {
 }
 
 
+/**
+ * Handles processing of the help/usage message action
+ */
 class ApiUsageAction implements Action {
 
 	public function process() {
@@ -159,12 +216,77 @@ echo '
  */
 class RecordAuditLogAction implements Action {
 
+	private $success = false;
+	private $app;
+	private $errors = array();
+
+	/**
+	 * Create Action for updating audit log.  Obtain ref to the App object to enable
+	 * access to resources eg config, db, logging etc
+	 */
+	public function __construct(App $app) {
+		$this->app = $app;
+	}
+
+	/**
+	 * Validate the input data 
+	 * 
+	 * @return array errors
+	 */
+	private function validateInput() {
+		$errors = array();
+
+		$input = $this->app->getRawRequestInput();
+err($input);
+
+		return $errors;
+	}
+
+	/**
+	 * Process the input request and data
+	 *
+	 * In this case,  update the AuditLog Table
+	 *
+	 */
 	public function process() {
-err('processing audit log');
-		// nothing to do
+
+		// data validation
+		$errors = $this->validateInput();
+
+		if (count($errors) > 0) {
+			$this->errors = $errors;
+			return;
+		}
+
+
+		if ( ! $app->hasDbConnection()) {
+			return;
+		}
+
+		$conn = $this->app->getDbConn();
+
+		if ($conn) {
+			$stmt = $conn->prepare('INSERT INTO AuditLog () VALUES(?, ?, ?, ?, NOW())');
+
+			$stmt->bind_param("s", 's');
+			$stmt->bind_param("s", 's');
+			$stmt->bind_param("s", 's');
+			$stmt->bind_param("s", 's');
+
+			$stmt->execute();
+
+			$this->success = true;
+		}
 	}
 
 	public function generateResponse() {
+		if ( ! $this->success) {
+			if ($this->errors) {
+			}
+
+			return;
+		} 
+
 		//header();
 	}
 }
@@ -185,10 +307,10 @@ class RequestNotAllowedAction implements Action {
 	}
 }
 
-
-
-
 err($_SERVER);
+err($_GET);
+err($_POST);
+err($_ENV);
 
 $app = new App($_SERVER, $_GET, $_POST, $_ENV);
 $app->setAllowedMethods(array(
