@@ -15,6 +15,22 @@ function err($var) {
 }
 
 /**
+ * Take an array and add a new array of values, creating the new values array 
+ * if necessary
+ *
+ * Just little helper function to tidy up code
+ * 
+ * @param array By reference
+ */
+function array_append_or_create(&$array, $key, $value) {
+	if (isset($array[$key]) && is_array($array[$key])) {
+		$array[$key][] = $value;
+	} else {
+		$array[$key] = array($value);
+	}
+}
+
+/**
  * App Controller to manage the processing of the request, generation and 
  * emiting of the response
  */
@@ -63,15 +79,15 @@ class App {
 	 * Start the processing of the request
 	 */
 	public function begin() {
-
 		// load config
 		$this->config = parse_ini_file('../conf/server-app.ini',  true);
-err($this->config);
 
 		if ( ! $this->config) {
 			echo 'Could not load config file. Aborting';
 			return;
 		}
+
+		$action = $this->createAction();
 
 		if ( ! $this->connectToDatabase()) {
 			$action = new RequestNotAllowedAction();
@@ -118,13 +134,14 @@ err($this->config);
 	 */
 	public function connectToDatabase() {
 		$conf = $this->config['database'];
-		$conn = new mysqli($conf['host'], $conf['database'], $conf['user'], $conf['password']);
+		$conn = new mysqli($conf['host'], $conf['user'], $conf['password'], $conf['database']);
 
 		if ($conn->connect_error) {
 			return false;
 		}
 
 		$this->conn = $conn;
+		return true;
 	}
 
 	/**
@@ -162,6 +179,11 @@ err($this->config);
 	}
 }
 
+
+
+
+
+
 /**
  * Simple abstract interface for all objects to process requets
  */
@@ -169,6 +191,10 @@ interface Action {
 	public function process();
 	public function generateResponse();
 }
+
+
+
+
 
 
 /**
@@ -211,6 +237,12 @@ echo '
 	}
 }
 
+
+
+
+
+
+
 /**
  * This action will handle the POSTs to update the Audit Log from client Applications
  */
@@ -219,6 +251,15 @@ class RecordAuditLogAction implements Action {
 	private $success = false;
 	private $app;
 	private $errors = array();
+	private $valid_input = array();
+
+	// we need a validation rule for each input
+	private $input_validation_rules = array(
+		'customer' => '/^[A-Za-z]{1,3}$/',
+		'product' => '/^[A-Za-z]{1,3}$/',
+		'event_timestamp' => '/^[0-9:\- ]*$/',
+		'device_id' => '/^[A-Za-z0-9]{16,32}$/',
+	);
 
 	/**
 	 * Create Action for updating audit log.  Obtain ref to the App object to enable
@@ -229,15 +270,50 @@ class RecordAuditLogAction implements Action {
 	}
 
 	/**
-	 * Validate the input data 
+	 * Validate the input data
+	 *
+	 * Good boys and girls always validate their input. 
+	 *
+	 * If you want to use data within the application you have to provide a 
+	 * validation rule. We use preg_match here for speed of development, though 
+	 * this can be quite slow and doesn't allow for bespoke error messages 
+	 * without futher work.  In a real system I'd look to replace these with 
+	 * functions defined on the data items within the domain.
 	 * 
-	 * @return array errors
+	 * @return array errors keyed on input field name with value an array of 
+	 *               error messages pertaining to that input field
 	 */
 	private function validateInput() {
-		$errors = array();
+		$errors = array(); 
 
-		$input = $this->app->getRawRequestInput();
-err($input);
+		$input_vars = $this->app->getRawRequestInput();
+
+		foreach ($input_vars as $var_name => $var_value) {
+
+			// check if a validation rules exists for the input field
+			if ( ! isset($this->input_validation_rules[$var_name]) ) {
+				array_append_or_create($errors, $var_name, 'This input field does not have a validation rules and so can not be accepted.');
+				continue;
+			}
+
+			// validate variable name
+			if ( ! preg_match('/^[A-Za-z0-9_]*$/', $var_name)) {
+				// hmmm what shall we do.  This wouldn't be the users fault, it would be 
+				// poor client programming or malicious input so telling the user would 
+				// be somewhat pointless as they can't do anything to fix it.
+
+				array_append_or_create($errors,  $var_name, 'Invalid data input field.');
+				continue;
+			}
+
+			// validate the input fields actual value
+			if ( ! preg_match($this->input_validation_rules[$var_name], trim($var_value))) {
+				array_append_or_create($errors, $var_name, 'Does not match the criteria for valid input.');
+				continue;
+			}
+
+			$this->valid_input[$var_name] = $var_value;
+		}
 
 		return $errors;
 	}
@@ -258,20 +334,26 @@ err($input);
 			return;
 		}
 
-
-		if ( ! $app->hasDbConnection()) {
+		if ( ! $this->app->hasDbConnection() ) {
 			return;
 		}
 
 		$conn = $this->app->getDbConn();
 
 		if ($conn) {
-			$stmt = $conn->prepare('INSERT INTO AuditLog () VALUES(?, ?, ?, ?, NOW())');
+			$stmt = $conn->prepare("INSERT INTO AuditLog (customer, product, raised, received) VALUES(? , ? , ? , NOW()) ");
+			if ( ! $stmt) {
+				err('preparing statement failed');
+				return;
+			}
 
-			$stmt->bind_param("s", 's');
-			$stmt->bind_param("s", 's');
-			$stmt->bind_param("s", 's');
-			$stmt->bind_param("s", 's');
+			$stmt->bind_param(
+				"sss", 
+				$this->valid_input['customer'], 
+				$this->valid_input['product'], 
+				$this->valid_input['event_timestamp']
+//				,  $this->valid_input['device_id']
+			);
 
 			$stmt->execute();
 
@@ -279,6 +361,10 @@ err($input);
 		}
 	}
 
+	/**
+	 * Inform the user to the result of the requested action.
+	 *
+	 */
 	public function generateResponse() {
 		if ( ! $this->success) {
 			if ($this->errors) {
@@ -290,6 +376,10 @@ err($input);
 		//header();
 	}
 }
+
+
+
+
 
 /**
  * This is the default action which informs the API user they've made an unsupported request
@@ -307,10 +397,10 @@ class RequestNotAllowedAction implements Action {
 	}
 }
 
-err($_SERVER);
-err($_GET);
-err($_POST);
-err($_ENV);
+
+
+
+
 
 $app = new App($_SERVER, $_GET, $_POST, $_ENV);
 $app->setAllowedMethods(array(
