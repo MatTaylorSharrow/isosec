@@ -17,6 +17,8 @@ find_package(Boost COMPONENTS system ...)
 set(auditclientcpp_SRC
   src/main.cpp
   src/auditclientcpp.cpp
+  src/app.cpp
+  src/httpclient.cpp
 )
 
 # Tell CMake to create the helloworld executable

@@ -5,7 +5,6 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     AuditClientCPP w;
-    w.generateDeviceIds();
     w.show();
 
     return app.exec();
