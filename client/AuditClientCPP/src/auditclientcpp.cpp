@@ -4,6 +4,8 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 
+#include <QRandomGenerator>
+
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -42,6 +44,9 @@ AuditClientCPP::~AuditClientCPP() = default;
 
 void 
 AuditClientCPP::generateDeviceIds() {
+    
+    auto const deviceids_to_generate = 200; // @todo - remove magic number
+    
     boost::uuids::random_generator gen;
     boost::uuids::uuid id;
 
@@ -50,11 +55,11 @@ AuditClientCPP::generateDeviceIds() {
 #endif
     
     // allocate upfront to stop costly allocations.
-    deviceids.reserve(200);  // @todo - remove magic number
+    m_deviceids.reserve(deviceids_to_generate);  // @todo - remove magic number
     
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < deviceids_to_generate; i++) {
         id = gen();
-        deviceids.emplace_back(id);
+        m_deviceids.emplace_back(id);
 #ifdef DEBUG
         m_ui->textEdit->insertPlainText(QString::fromStdString(to_string(id) + "\n"));
 #endif
@@ -81,18 +86,15 @@ AuditClientCPP::sendAudit(std::string customer, std::string product, std::string
     auto const target = "/AuditLog";
     auto const http_version = 11;
     
-    // The io_context is required for all I/O
-    boost::asio::io_context ioc;
+    boost::asio::io_context ioc;                                                // The io_context is required for all I/O
 
     // These objects perform our I/O
     tcp::resolver resolver{ioc};
     tcp::socket socket{ioc};
+    
+    auto const results = resolver.resolve(host, port);                          // Look up the domain name
 
-    // Look up the domain name
-    auto const results = resolver.resolve(host, port);
-
-    // Make the connection on the IP address we get from a lookup
-    boost::asio::connect(socket, results.begin(), results.end());
+    boost::asio::connect(socket, results.begin(), results.end());               // Make the connection on the IP address we get from a lookup
 
     // Set up an HTTP GET request message
     boost::beast::http::request<boost::beast::http::string_body> req{boost::beast::http::verb::post, target, http_version};
@@ -100,26 +102,18 @@ AuditClientCPP::sendAudit(std::string customer, std::string product, std::string
     req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
     req.set(boost::beast::http::field::content_type, "application/json");
     req.body() = json_doc.toJson().toStdString();
-    req.prepare_payload();
-    
-//#ifdef DEBUG
+    req.prepare_payload();    
+#ifdef DEBUG
     m_ui->textEdit->insertPlainText(QString::fromStdString(json_doc.toJson().toStdString() + "\n"));
-//#endif
+#endif
 
-    // Send the HTTP request to the remote host
-    boost::beast::http::write(socket, req);
+    boost::beast::http::write(socket, req);                                     // Send the HTTP request to the remote host
+    boost::beast::flat_buffer buffer;                                           // This buffer is used for reading and must be persisted
+    boost::beast::http::response<boost::beast::http::dynamic_body> resp;        // Declare a container to hold the response
+    boost::beast::http::read(socket, buffer, resp);                             // Receive the HTTP response
     
-    // This buffer is used for reading and must be persisted
-    boost::beast::flat_buffer buffer;
-
-    // Declare a container to hold the response
-    boost::beast::http::response<boost::beast::http::dynamic_body> res;
-
-    // Receive the HTTP response
-    boost::beast::http::read(socket, buffer, res);
-
 //#ifdef DEBUG
-    std::string res_string = boost::beast::buffers_to_string(res.body().data());
+    std::string res_string = boost::beast::buffers_to_string(resp.body().data());
     m_ui->textEdit->insertPlainText(QString::fromStdString(res_string + "\n"));
 //#endif
     
@@ -131,14 +125,58 @@ AuditClientCPP::sendAudit(std::string customer, std::string product, std::string
     if (ec && ec != boost::system::errc::not_connected) {
         throw boost::system::system_error{ec};
     }
+    
+    switch (resp.result()) {
+        case boost::beast::http::status::no_content: //204
+            m_ui->textEdit->insertPlainText(QString::fromStdString("Audit log message created \n"));
+            break;
+            
+        case boost::beast::http::status::ok: //200
+            m_ui->textEdit->insertPlainText(QString::fromStdString("Audit log message created \n"));
+            break;
+            
+        case boost::beast::http::status::bad_request: //400
+            m_ui->textEdit->insertPlainText(QString::fromStdString("Audit log message NOT created because: \n"));
+            m_ui->textEdit->insertPlainText(QString::fromStdString("Audit log message NOT created \n"));
+            break;
+            
+        case boost::beast::http::status::method_not_allowed: //405
+            break;
+        
+        default: // code received that's not part of the interface
+            m_ui->textEdit->insertPlainText(QString::fromStdString("Unknown error has occurred \n"));
+    }
+}
+
+/**
+ * Helper method to populate random numbers into vectors
+ */
+void AuditClientCPP::populateRandoms(QVector<quint32> &vec, int qty, quint32 lo, quint32 hi) {
+    vec.resize(qty);
+    std::generate(vec.begin(), vec.end(), [this,lo,hi]() {
+        return QRandomGenerator::global()->bounded(lo, hi);
+    });
 }
 
 void 
 AuditClientCPP::on_simulateStampedeButton_clicked() {
-    //m_ui->centralwidget->setStyleSheet("background-color:blue;");
+    auto const emitsize = 1000; // @todo - remove magic number
+    QVector<quint32> dev_id_rand, cust_rand, prod_rand; // to hold emitsize random numbers
     
-    for (int i = 0; i < 1; i++) {  //@todo - remove magic number
-        sendAudit("BMW","SSO","61c00a83-3058-4f43-a8b7-3fe97d2a649f");
+    // generate random numbers 3 * emitsize 
+    // quicker to generate in advance prior to loop as only requires 3 trips to 
+    // the system RNG
+    populateRandoms(dev_id_rand, emitsize, 0, m_deviceids.size());
+    populateRandoms(cust_rand, emitsize, 0, m_customers.size());
+    populateRandoms(prod_rand, emitsize, 0, m_products.size());
+    
+    // loop emitsize times 
+    for (int i = 0; i < emitsize; i++) {
+        sendAudit(
+            m_customers[cust_rand[i]],
+            m_products[prod_rand[i]], 
+            to_string(m_deviceids[dev_id_rand[i]])
+        );
     }
 }
 
