@@ -4,7 +4,6 @@
 #include <QJsonDocument>
 #include <QRandomGenerator>
 
-
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -20,29 +19,30 @@ try {
 */
 
 
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/beast/core/buffers_to_string.hpp>
-#include <boost/beast/core/error.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-
-using tcp = boost::asio::ip::tcp;       // type alias
-
 App::App()
 {
 }
 
 App::~App()
 {
+    m_qtapp = nullptr; // release pointer
 }
+
 
 void App::setupApp(AuditClientCPP * qtapp){
     m_qtapp = qtapp; 
+    
+    //@todo load config 
+//     m_host = "api.isosec.com";
+//     m_port = "80";
+//     m_target = "/AuditLog";
+//     m_deviceids_to_generate = 200;
+//     m_emitsize = 1000;
+    
+    m_httpclient = std::make_shared<HttpClient>( /*host, port */ );
+    
     generateDeviceIds();
 }
-
 
 /**
  * Generate 16 byte (128bit) uuid
@@ -50,48 +50,57 @@ void App::setupApp(AuditClientCPP * qtapp){
  * Called from main()
  */
 void App::generateDeviceIds() 
-{
-    auto const deviceids_to_generate = 200; // @todo - remove magic number
-    
+{    
     boost::uuids::random_generator gen;
     boost::uuids::uuid id;
 
-//#ifdef DEBUG    
+#ifdef DEBUG    
     m_qtapp->printToTextArea("Generating UUIDs ... ");
-//#endif
+#endif
     
     // allocate upfront to stop costly allocations.
-    m_deviceids.reserve(deviceids_to_generate);
-    for (int i = 0; i < deviceids_to_generate; i++) {
+    m_deviceids.reserve(m_deviceids_to_generate);
+    for (int i = 0; i < m_deviceids_to_generate; i++) {
         id = gen();
         m_deviceids.emplace_back(id);
-        
-//#ifdef DEBUG
+#ifdef DEBUG
         m_qtapp->printToTextArea(to_string(id));
-//#endif
+#endif
     }
 }
 
-
+/**
+ * Send a large number of audit log messages to the server.  Each message will
+ * have a randomly selected customer, product and device id.
+ * 
+ */
 void App::emitStampede() {
-    auto const emitsize = 1000; // @todo - remove magic number
-    QVector<quint32> dev_id_rand, cust_rand, prod_rand; // to hold emitsize random numbers
+    QVector<quint32> dev_id_rand, cust_rand, prod_rand; // to hold m_emitsize random numbers
     
     // generate random numbers 3 * emitsize 
     // quicker to generate in advance prior to loop as only requires 3 trips to 
     // the system RNG
-    populateRandoms(dev_id_rand, emitsize, 0, m_deviceids.size());
-    populateRandoms(cust_rand,   emitsize, 0, m_customers.size());
-    populateRandoms(prod_rand,   emitsize, 0, m_products.size());
+    populateRandoms(dev_id_rand, m_emitsize, 0, m_deviceids.size());
+    populateRandoms(cust_rand,   m_emitsize, 0, m_customers.size());
+    populateRandoms(prod_rand,   m_emitsize, 0, m_products.size());
+    
+    bool success;
+    int fail = 0;
     
     // loop emitsize times 
-    for (int i = 0; i < emitsize; i++) {
-        sendAudit(
+    for (int i = 0; i < m_emitsize; i++) {
+        success = sendAudit(
             m_customers[cust_rand[i]],
             m_products[prod_rand[i]], 
             to_string(m_deviceids[dev_id_rand[i]])
         );
+        
+        if (!success) {
+            fail++;
+        }
     }
+    
+    m_qtapp->printToTextArea("We sent " + std::to_string(m_emitsize) + " audit logs, " + std::to_string(m_emitsize - fail) + " succeeded, " + std::to_string(fail) + " failed. ");
 }
 
 /**
@@ -117,70 +126,35 @@ bool App::sendAudit(std::string customer, std::string product, std::string devic
     json_request.insert("device_id", QJsonValue(QString::fromStdString(device_id)));
     QJsonDocument json_doc = QJsonDocument(json_request);
 
-//#ifdef DEBUG    
+#ifdef DEBUG    
     m_qtapp->printToTextArea(customer + " " + product + " " + device_id);
-//#endif
+#endif
 
-    auto const host = "api.isosec.com";
-    auto const port = "80";
-    auto const target = "/AuditLog";
-    auto const http_version = 11;
-    
-    boost::asio::io_context ioc;                                                // The io_context is required for all I/O
+    m_httpclient->makeConnection(m_host, m_port);
+    m_httpclient->sendRequest(m_target, json_doc.toJson().toStdString());
+    std::pair<int, std::string> response = m_httpclient->getResponse();
+    m_httpclient->closeConnection();
 
-    // These objects perform our I/O
-    tcp::resolver resolver{ioc};
-    tcp::socket socket{ioc};
-    
-    auto const results = resolver.resolve(host, port);                          // Look up the domain name
-    boost::asio::connect(socket, results.begin(), results.end());               // Make the connection on the IP address we get from the lookup
-
-    // Set up an HTTP GET request message
-    boost::beast::http::request<boost::beast::http::string_body> req{boost::beast::http::verb::post, target, http_version};
-    req.set(boost::beast::http::field::host, host);
-    req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-    req.set(boost::beast::http::field::content_type, "application/json");
-    req.body() = json_doc.toJson().toStdString();
-    req.prepare_payload();
-//#ifdef DEBUG
-    m_qtapp->printToTextArea(json_doc.toJson().toStdString());
-//#endif
-
-    boost::beast::http::write(socket, req);                                     // Send the HTTP request to the remote host
-    boost::beast::flat_buffer buffer;                                           // This buffer is used for reading and must be persisted
-    boost::beast::http::response<boost::beast::http::dynamic_body> resp;        // Declare a container to hold the response
-    boost::beast::http::read(socket, buffer, resp);                             // Receive the HTTP response
-    
-//#ifdef DEBUG
-    std::string res_string = boost::beast::buffers_to_string(resp.body().data());
-    m_qtapp->printToTextArea(res_string);
-//#endif
-    
-    // Gracefully close the socket
-    boost::system::error_code ec;
-    socket.shutdown(tcp::socket::shutdown_both, ec);
-
-    // not_connected happens sometimes so don't bother reporting it.
-    if (ec && ec != boost::system::errc::not_connected) {
-        throw boost::system::system_error{ec};
-    }
-    
-    switch (resp.result()) {
-        case boost::beast::http::status::no_content: //204
-//#ifdef DEBUG
+    bool result = false;
+    switch (response.first) {
+        case 204:
+#ifdef DEBUG
             m_qtapp->printToTextArea("Audit log message created ");
-//#endif
+#endif
+            result = true;
             break;
-        case boost::beast::http::status::ok: //200
+        case 200:
             m_qtapp->printToTextArea("Audit log message created "); // would only get this for a request to / by GET
-            break;
-        case boost::beast::http::status::bad_request: //400
+            break;            
+        case 400:
             m_qtapp->printToTextArea("Audit log message NOT created because: ");
             m_qtapp->printToTextArea(" ");
             break;            
-        case boost::beast::http::status::method_not_allowed: //405
+        case 405:
             break;
         default: // code received that's not part of the interface
             m_qtapp->printToTextArea("Unknown error has occurred ");
     }
+    
+    return result;
 }

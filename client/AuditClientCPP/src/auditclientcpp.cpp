@@ -9,7 +9,7 @@
 AuditClientCPP::AuditClientCPP(QWidget *parent) :
     QMainWindow(parent),
     m_ui(new Ui::AuditClientCPP), // construct on heap
-    m_app(new App()) //construct App on heap
+    m_app(new App()) //construct App on heap (lifetime managed by QScopedPointer)
 {
     m_ui->setupUi(this);
     m_app->setupApp(this);
@@ -20,13 +20,6 @@ AuditClientCPP::AuditClientCPP(QWidget *parent) :
  */
 AuditClientCPP::~AuditClientCPP() = default;
 
-/**
- * Getter for the Ui:AuditClientCPP object
- */ /*
-QScopedPointer<Ui::AuditClientCPP> * AuditClientCPP::ui() {
-    return m_ui;
-}
-*/
 
 /**
  * 

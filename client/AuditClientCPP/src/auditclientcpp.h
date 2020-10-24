@@ -20,10 +20,6 @@ public:
     explicit AuditClientCPP(QWidget *parent = nullptr);
     ~AuditClientCPP() override;
 
-    /**
-     * Accessor
-     */
-    // QScopedPointer<Ui::AuditClientCPP> * ui();
     void printToTextArea(std::string s);
     
 private:
