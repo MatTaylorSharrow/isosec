@@ -210,6 +210,7 @@ class ApiUsageAction implements Action {
 	 * Print out the usage / help message
 	 */
 	public function generateResponse() {
+		http_response_code(200);
 echo '
 <html>
     <head>
@@ -251,14 +252,15 @@ class RecordAuditLogAction implements Action {
 	private $success = false;
 	private $app;
 	private $errors = array();
+	private $db_errors = array();
 	private $valid_input = array();
 
 	// we need a validation rule for each input
 	private $input_validation_rules = array(
 		'customer' => '/^[A-Za-z]{1,3}$/',
 		'product' => '/^[A-Za-z]{1,3}$/',
-		'event_timestamp' => '/^[0-9:\- ]*$/',
-		'device_id' => '/^[A-Za-z0-9]{16,32}$/',
+		'event_timestamp' => '/^[0-9:\-TZ ]*$/',
+		'device_id' => '/^[A-Fa-f0-9\-]{36}$/',  // eg 47d44232-d229-40f3-b9e5-c02420d65973  in hex representation
 	);
 
 	/**
@@ -321,7 +323,7 @@ class RecordAuditLogAction implements Action {
 	/**
 	 * Process the input request and data
 	 *
-	 * In this case,  update the AuditLog Table
+	 * In this case, update the AuditLog Table
 	 *
 	 */
 	public function process() {
@@ -334,31 +336,46 @@ class RecordAuditLogAction implements Action {
 			return;
 		}
 
+		// this is just to guard against warnings from app->getDbConn() if $conn is null;
 		if ( ! $this->app->hasDbConnection() ) {
+			$this->db_errors['connection'] = 'No Connection prior to preparing insert query.';
 			return;
 		}
 
 		$conn = $this->app->getDbConn();
 
-		if ($conn) {
-			$stmt = $conn->prepare("INSERT INTO AuditLog (customer, product, raised, received) VALUES(? , ? , ? , NOW()) ");
-			if ( ! $stmt) {
-				err('preparing statement failed');
-				return;
-			}
+		if ( ! $conn) {
+			$this->db_errors['connection'] = 'No Connection prior to preparing insert query.';
+			return;
+		}
+		
+		$stmt = $conn->prepare("INSERT INTO AuditLog (customer, product, device_id, raised, received) VALUES(?, ?, UNHEX(REPLACE(?,'-','')), ?, NOW()) ");
+		if ( ! $stmt ) {
+			$this->db_errors['statement'] = 'Preparing the query failed:  '.$stmt->error;
+			return;
+		}
 
-			$stmt->bind_param(
-				"sss", 
+		if ( ! $stmt->bind_param("ssss", 
 				$this->valid_input['customer'], 
 				$this->valid_input['product'], 
+				$this->valid_input['device_id'],
 				$this->valid_input['event_timestamp']
-//				,  $this->valid_input['device_id']
-			);
-
-			$stmt->execute();
-
-			$this->success = true;
+		) ) {
+			// bind failed .
+			$this->db_errors['statement'] = 'Binding user data to the query failed: '.$stmt->error;
+			return;
 		}
+
+		if ( ! $stmt->execute() ) {
+			// Query failed
+			$this->db_errors['query'] = 'Execution of the query failed: '.$stmt->error;
+			$stmt->close();
+			return;
+		}
+
+		$this->success = true;
+
+		$stmt->close(); // not bothered if this fails
 	}
 
 	/**
@@ -366,14 +383,23 @@ class RecordAuditLogAction implements Action {
 	 *
 	 */
 	public function generateResponse() {
+
+		header('Content-Type: application/json');
+		http_response_code(204);
+
 		if ( ! $this->success) {
+			$document = new stdClass;
 			if ($this->errors) {
+				$document->validation_errors = $this->errors;
+			}
+			if ($this->db_errors) {
+				$document->database_errors = $this->db_errors;
 			}
 
+			http_response_code(400);
+			echo json_encode($document);
 			return;
 		} 
-
-		//header();
 	}
 }
 
@@ -392,8 +418,7 @@ class RequestNotAllowedAction implements Action {
 
 	public function generateResponse() {
 		err('request not allowed');
-		//send 405 Response
-		//header(); 
+		http_response_code(405);
 	}
 }
 

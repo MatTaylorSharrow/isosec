@@ -68,12 +68,12 @@ AuditClientCPP::sendAudit(std::string customer, std::string product, std::string
     QJsonObject json_request = QJsonObject();
     json_request.insert("customer", QJsonValue(QString::fromStdString(customer)));
     json_request.insert("product", QJsonValue(QString::fromStdString(product)));
-    json_request.insert("event_timestamp", QJsonValue(QString::fromStdString("2020-10-23 10:09:23")));
+    json_request.insert("event_timestamp", QJsonValue( QDateTime::currentDateTime().toString(Qt::ISODate) ));
     json_request.insert("device_id", QJsonValue(QString::fromStdString(device_id)));
     QJsonDocument json_doc = QJsonDocument(json_request);
 
 #ifdef DEBUG    
-m_ui->textEdit->insertPlainText(QString::fromStdString(customer + " " + product + " " + device_id + "\n"));
+    m_ui->textEdit->insertPlainText(QString::fromStdString(customer + " " + product + " " + device_id + "\n"));
 #endif
 
     auto const host = "api.isosec.com";
@@ -102,9 +102,9 @@ m_ui->textEdit->insertPlainText(QString::fromStdString(customer + " " + product 
     req.body() = json_doc.toJson().toStdString();
     req.prepare_payload();
     
-#ifdef DEBUG
-m_ui->textEdit->insertPlainText(QString::fromStdString(json_doc.toJson().toStdString() + "\n"));
-#endif
+//#ifdef DEBUG
+    m_ui->textEdit->insertPlainText(QString::fromStdString(json_doc.toJson().toStdString() + "\n"));
+//#endif
 
     // Send the HTTP request to the remote host
     boost::beast::http::write(socket, req);
@@ -118,10 +118,10 @@ m_ui->textEdit->insertPlainText(QString::fromStdString(json_doc.toJson().toStdSt
     // Receive the HTTP response
     boost::beast::http::read(socket, buffer, res);
 
-#ifdef DEBUG
+//#ifdef DEBUG
     std::string res_string = boost::beast::buffers_to_string(res.body().data());
     m_ui->textEdit->insertPlainText(QString::fromStdString(res_string + "\n"));
-#endif
+//#endif
     
     // Gracefully close the socket
     boost::system::error_code ec;
@@ -137,16 +137,13 @@ void
 AuditClientCPP::on_simulateStampedeButton_clicked() {
     //m_ui->centralwidget->setStyleSheet("background-color:blue;");
     
-    for (int i = 0; i < 1000; i++) {  //@todo - remove magic number
-        
-        sendAudit("BMW","RIO","abcdefghijklmnopqrstuvwxyz");
+    for (int i = 0; i < 1; i++) {  //@todo - remove magic number
+        sendAudit("BMW","SSO","61c00a83-3058-4f43-a8b7-3fe97d2a649f");
     }
 }
 
 void 
 AuditClientCPP::on_simulateQueueButton_clicked() {
     m_ui->centralwidget->setStyleSheet("background-color:yellow;");
-    
-    
 }
 
