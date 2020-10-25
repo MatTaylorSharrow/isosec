@@ -134,22 +134,64 @@ On linux this will copy the binary to  /usr/local/bin/
 
 ## Setup & Configuration ##
 
-config files
+The server component contains a config file which contains the database connection details.  The file resides in the isosec/conf folder and is called conf/server-app.ini . The user details were created when the database was created / installed.  All you should need to do is change the host if you are not connecting to the local database server.
 
-hardcoded values in client
+The desktop client has hardcoded values for connecting to the web service.  If you need to change these then edit the below file and rebuild the client app
 
-db server events turned on
+    client/AuditClientCPP/src/app.h
+
+
+
+The MySQL must have the events scheduler turned on.  We attempt to do this during install but you may also need to edit my.cnf (my.ini on windows) and set the config value to:
+
+    event_scheduler=ENABLED
+
+See https://dev.mysql.com/doc/refman/8.0/en/events-configuration.html for further details
 
 
 
 ### REST API format ###
 
+The rest API only supports two requests, 1, The Help / Usage request which is a
+
+Method | Request Path | Success Result Code | Success response body type | Error result code | Error response body type
+------------ | ------------- | ------------- | ------------- | ------------- | -------------
+GET | / | 200 | html |  ?? | ??
+POST | /AuditLog | 204 | No Body |  400 | json - @see example below
+
+
+/AuditLog Request Body
 ```json
 {
-	"customer": "BMW",
-	"product": "KPI", 
-	"event_timestamp": "2020-10-23 10:09:23", 
-	"device_id": "61c00a83-3058-4f43-a8b7-3fe97d2a649f"
+    "customer": "BMW",
+    "product": "KPI", 
+    "event_timestamp": "2020-10-23 10:09:23", 
+    "device_id": "61c00a83-3058-4f43-a8b7-3fe97d2a649f"
+}
+```
+
+/AuditLog Failure response bodies
+```json
+{
+    "database_errors":{
+       "query":"Execution of the query failed: DB generated message"
+    }
+}
+
+{
+    "validation_errors":{
+        "product":[
+	    "Does not match the criteria for valid input."
+	]
+    }
+}
+
+{
+    "validation_errors":{
+        "customer":[
+	    "Does not match the criteria for valid input."
+	]
+    }
 }
 ```
 
