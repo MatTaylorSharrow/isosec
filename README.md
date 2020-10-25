@@ -1,4 +1,4 @@
-# isosec programming test
+# Isosec Programming Test
 
 
 ## Contents ##
@@ -30,9 +30,59 @@ install-mysql.sh
 
 ### Server Component ###
 
-php
-apache
-mysql
+The server component only requires the files in the  server/ and conf/ directories. The server/index.php files reads its conf file from conf/server-app.ini so the directory structure should be preserved. If you are hosting the server comonent on the server where the code is checked out to, simply setup a web server vhost to point to the server directory.  Otherwise if you are hosting the server on a remote server, upload both the server/ and conf/ directories together to the same target, then continue to set up your remote web server vhost.
+
+Set up the virtual host as api.isosec.com (as this is hardcoded into the desktop client).  You can make entries in your /etc/hosts file (or C:\Windows\System32\drivers\etc\hosts on windows) eg:
+
+    127.0.0.1       api.isosec.com
+
+Once the host file entry is set up you can point a web browser at http://api.isosec.com and you should see a simple page describing the Rest API.
+
+An example virtual host file for apache is below.  Ensure the DocuementRoot and Directory directives are the same path, ie the path to the server component code.
+
+Also important to note is the use of the FallbackResource directive.  This is used to ensure all web requests are directed to index.php.  If your web server does not support this directive or something similar, you may need to use the RewriteEngine to perform the same operation.
+
+```httpd.conf
+<VirtualHost *:80>
+    ServerName api.isosec.com
+    DocumentRoot /path/to/checked/out/code/for/isosec/server
+
+    ServerAdmin webmaster@api.isosec.com
+    # if not specified, the global error log is used
+    ErrorLog /var/log/apache2/api.isosec.com-error_log
+    CustomLog /var/log/apache2/api.isosec.com-access_log combined
+    # don't loose time with IP address lookups
+    HostnameLookups Off
+    # needed for named virtual hosts
+    UseCanonicalName Off
+    ServerSignature Off
+    DirectoryIndex index.php
+    
+    <Directory "/path/to/checked/out/code/for/isosec/server">
+        Options Indexes FollowSymLinks
+        AllowOverride None
+
+        <IfModule !mod_access_compat.c>
+            Require all granted
+        </IfModule>
+        <IfModule mod_access_compat.c>
+            Order allow,deny
+            Allow from all
+        </IfModule>
+
+        FallbackResource "index.php"
+#       RewriteEngine  on
+#       RewriteRule    "^(.*)$"  "/index.php?action=$1" [PT]
+    </Directory>
+</VirtualHost>
+```
+
+The server component was written using PHP 7.2.5 so any later version will work fine.  Mysqli must be available, it's usually built in by default. 
+
+You must ensure that MySQL is running the event scheduler.  This is done via db install however.  If you need to turn it on manually than run the following command from a mysql root terminal: 
+
+    SET GLOBAL event_scheduler = ON;
+
 
 ### Desktop Client ###
 
@@ -62,8 +112,8 @@ db server events turned on
 ## Design descisions and known problems ##
 
 
-## Todo ##
 
+## Todo ##
 Server:
 - [ ] Move html to template file
 - [ ] Move to individual files 
