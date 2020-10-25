@@ -32,7 +32,6 @@ install-mysql.sh
 ```
 
 
-
 ### Server Component ###
 
 
@@ -97,7 +96,12 @@ To build the desktop client, Qt and Boost Libraries will be required.  I've curr
 
 - Installing libraries
 
-First download the latest l
+First download and install the libraries for your operating system:
+ Qt - https://doc.qt.io/qt-5/gettingstarted.html
+ Boost - https://www.boost.org/doc/libs/1_66_0/more/getting_started/
+ 
+If you're on linux you could use your package manager to install the -devel packages for the two libraries.  
+
 
 - Building
 
