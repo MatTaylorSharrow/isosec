@@ -1,6 +1,5 @@
 # Isosec Programming Test
 
-
 ## Contents ##
 
 1. Install
@@ -13,11 +12,15 @@
 1. Design descisions and known problems
 1. Todo
 
+
+
 ## Install ##
+
 
 First, check the code from github:
 
     git clone https://github.com/MatTaylorSharrow/isosec.git
+
 
 ### Database ###
 
@@ -28,7 +31,10 @@ cd isosec/db
 install-mysql.sh
 ```
 
+
+
 ### Server Component ###
+
 
 The server component only requires the files in the  server/ and conf/ directories. The server/index.php files reads its conf file from conf/server-app.ini so the directory structure should be preserved. If you are hosting the server comonent on the server where the code is checked out to, simply setup a web server vhost to point to the server directory.  Otherwise if you are hosting the server on a remote server, upload both the server/ and conf/ directories together to the same target, then continue to set up your remote web server vhost.
 
@@ -86,14 +92,51 @@ You must ensure that MySQL is running the event scheduler.  This is done via db 
 
 ### Desktop Client ###
 
-Installing libraries
-building
-Install
+
+To build the desktop client, Qt and Boost Libraries will be required.  I've currently only built against my system installed libraries.  The Desktop Client builds against Boost >= 1.66 and Qt >= 5.15.0.
+
+- Installing libraries
+
+First download the latest l
+
+- Building
+
+The client app uses Cmake to generate a build for your build system.  As I'm on linux and using gcc/autotool I follow the following procedure:
+
+From the root of the checked out sources:
+
+```bash
+cd isosec/client/AuditClientCPP/build
+cmake ../
+make
+```
+
+This will create a binary file in the build current build directory so all you should need to execute it is run it
+
+```bash
+./auditclientcpp
+```
+
+- Install
+
+To install using the build system simply type:
+
+```bash
+make install
+```
+
+On linux this will copy the binary to  /usr/local/bin/
 
 
 ## Setup & Configuration ##
+
 config files
+
+hardcoded values in client
+
 db server events turned on
+
+
 
 ### REST API format ###
 
@@ -106,10 +149,47 @@ db server events turned on
 }
 ```
 
+
 ## User Guide ##
+
+Once the server component is set up and running the client Application can be launched.  
+
+You will be presented with a TextArea with two buttons "Simulate (Stampede)" and "Simulate (Queue)".  
+
+Pressing "Simulate (Stampede)" will start sending 1000 audit log messages to the web server.  Error messages will be displayed in the text area. After the messages have been sent, a message will tell the user how many were sent successfully and how many failed.  You'll also be informed of how long it took to send the messages.  Pressing the button again will send more audit log messges to the server.  Again the user will be advised of failures.
+
+Pressing "Simulate (Queue)" will do nothing other than display a message in the text area. It was intended to do some fancy things will the outgoing messages but this has not been implemented. 
+
+To close the application use the OS window's close (x) icon in the top corner of the window.
 
 
 ## Design descisions and known problems ##
+
+Design decisions
+- Rest API
+- Database design, foreign keys, UUID
+- Random creation of messages to send 
+- UUID generation
+- HTTP Client
+- Input validation
+- DB Queries
+	- prepare statement to avoid sql injection
+	- privileges for api user
+- Audit Log Truncate / Backup
+	
+
+Know Problems
+- boost libraries used for sockets and uuid when existing Qt libraries would have done, this causes extra complications for distributing and building the software.  I simply neglected to search for Qt versions of classes required to do the job.
+- char encoding - html, php, apache vhost, mysql database/tables/connections and client app should all communicate in utf8.  Nothing has been specified in any location so if multi byte characters were to be used, there will probably be char encoding problems observed.
+- exception handling is basically missing.  Exception handing is required around the boost library calls and possibly the whole app.
+- Line ending / carriage returns
+- Config values hardcoded.  Just ran out of time.
+- Unit tests
+
+Comments
+- Ugh Qt Json response object processing !!!!
+- Connection re-use (web sockets perhaps)
+
 
 
 
