@@ -31,3 +31,39 @@ SELECT id, customer, product,
     INSERT(INSERT(INSERT(INSERT(HEX(device_id),9,0,'-'),14,0,'-'),19,0,'-'),24,0,'-') AS hex_device_id,
     raised, received
 FROM AuditLog;
+
+
+
+DELIMITER //
+
+CREATE OR REPLACE PROCEDURE TruncateAuditLog ()
+ BEGIN
+    SET @auditlog_date = CONCAT("AuditLog_", CURDATE()+0);
+    SET @create_query = CONCAT("CREATE TABLE ", @auditlog_date, " LIKE AuditLog;");
+    SET @insert_query = CONCAT("INSERT INTO ", @auditlog_date, " SELECT * FROM AuditLog;");
+    SET @delete_query = CONCAT("DELETE AuditLog.* FROM AuditLog INNER JOIN ", @auditlog_date, " ON AuditLog.id=", @auditlog_date, ".id;");
+
+    PREPARE create_stmt FROM @create_query; 
+    EXECUTE create_stmt; 
+    DEALLOCATE PREPARE create_stmt; 
+
+    START TRANSACTION;
+        PREPARE insert_stmt FROM @insert_query; 
+        EXECUTE insert_stmt; 
+        DEALLOCATE PREPARE insert_stmt; 
+
+        PREPARE delete_stmt FROM @delete_query; 
+        EXECUTE delete_stmt; 
+        DEALLOCATE PREPARE delete_stmt; 
+    COMMIT;
+    
+ END;
+//
+
+DELIMITER ;
+
+CREATE OR REPLACE EVENT TruncateAuditLogJob
+ON SCHEDULE EVERY 1 DAY STARTS TIMESTAMP(CONCAT(CURDATE(), ' 00:0:00'))
+DO
+    CALL TruncateAuditLog;
+
