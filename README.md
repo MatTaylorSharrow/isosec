@@ -159,8 +159,9 @@ Method | Request Path | Success Result Code | Success response body type | Error
 GET | / | 200 | html |  ?? | ??
 POST | /AuditLog | 204 | No Body |  400 | json - @see example below
 
+All json requests and responses use "application/json" as the content-type
 
-/AuditLog Request Body
+/AuditLog Request Body example
 ```json
 {
     "customer": "BMW",
