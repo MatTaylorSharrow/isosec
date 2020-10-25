@@ -5,8 +5,9 @@
 #include <vector>
 
 #include <boost/asio/ip/tcp.hpp>
-
 using tcp = boost::asio::ip::tcp;       // type alias
+
+#include "app.h"
 
 /**
  * This is a simple wrapper around the boost::beast classes and calls to provide
@@ -22,7 +23,7 @@ public:
     HttpClient();
     
     /**
-     * 
+     * Create an HttpClient and make a connection through the socket
      */
     HttpClient(const std::string & host, const std::string & port);
 
@@ -32,6 +33,7 @@ public:
      */
     ~HttpClient();
 
+    void setup(App * app);
     void makeConnection(const std::string & host, const std::string & port);
     void closeConnection();
     void sendRequest(const std::string & target, const std::string & payload);
@@ -42,6 +44,8 @@ private:
     boost::asio::io_context m_ioc;
     tcp::socket m_socket;
     tcp::resolver m_resolver;
+    
+    App * m_app;
     
     std::string m_host;
 };

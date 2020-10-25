@@ -2,22 +2,17 @@
 
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QRandomGenerator>
+#include <QElapsedTimer>
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-/*#include <boost/uuid/entropy_error.hpp> not in boost 1.66.0 but exists in 1.67
-try {
-    id = gen();
-} catch(boost::uuids::entropy_error) {
-    // an error can occur if the system doesn't have enough entropy, so
-    // we're not too concerned so maybe just try again 
-    error_count++;
-    i--;
-}
-*/
 
+#include "httpclient.h"
 
 App::App()
 {
@@ -40,8 +35,16 @@ void App::setupApp(AuditClientCPP * qtapp){
 //     m_emitsize = 1000;
     
     m_httpclient = std::make_shared<HttpClient>( /*host, port */ );
+    m_httpclient->setup(this);
     
     generateDeviceIds();
+}
+
+/**
+ * Helper method to pass text updates for debug purpose to the GUI's text areas
+ */
+void App::printToTextArea(std::string s) {
+    m_qtapp->printToTextArea(s);
 }
 
 /**
@@ -75,6 +78,9 @@ void App::generateDeviceIds()
  * 
  */
 void App::emitStampede() {
+    QElapsedTimer timer;
+    timer.start();
+    
     QVector<quint32> dev_id_rand, cust_rand, prod_rand; // to hold m_emitsize random numbers
     
     // generate random numbers 3 * emitsize 
@@ -100,7 +106,9 @@ void App::emitStampede() {
         }
     }
     
-    m_qtapp->printToTextArea("We sent " + std::to_string(m_emitsize) + " audit logs, " + std::to_string(m_emitsize - fail) + " succeeded, " + std::to_string(fail) + " failed. ");
+    m_qtapp->printToTextArea("We sent " + std::to_string(m_emitsize) + " audit logs, " + std::to_string(m_emitsize - fail) + " succeeded, " + std::to_string(fail) + " failed. \n");
+    double seconds = double(timer.elapsed()) / 1000;
+    m_qtapp->printToTextArea("It has take " + std::to_string(seconds) + " seconds \n");
 }
 
 /**
@@ -118,43 +126,124 @@ void App::populateRandoms(QVector<quint32> &vec, int qty, quint32 lo, quint32 hi
  * Connect to a web server and send an audit log message
  */
 bool App::sendAudit(std::string customer, std::string product, std::string device_id) 
-{
+{   
     QJsonObject json_request = QJsonObject();
     json_request.insert("customer", QJsonValue(QString::fromStdString(customer)));
     json_request.insert("product", QJsonValue(QString::fromStdString(product)));
-    json_request.insert("event_timestamp", QJsonValue( QDateTime::currentDateTime().toString(Qt::ISODate) ));
+    json_request.insert("event_timestamp", QJsonValue(QDateTime::currentDateTime().toString(Qt::ISODate)));
     json_request.insert("device_id", QJsonValue(QString::fromStdString(device_id)));
     QJsonDocument json_doc = QJsonDocument(json_request);
-
-#ifdef DEBUG    
-    m_qtapp->printToTextArea(customer + " " + product + " " + device_id);
-#endif
 
     m_httpclient->makeConnection(m_host, m_port);
     m_httpclient->sendRequest(m_target, json_doc.toJson().toStdString());
     std::pair<int, std::string> response = m_httpclient->getResponse();
     m_httpclient->closeConnection();
 
+    // hmm we are processing each response in turn here, perhaps it would be
+    // quicker / less memory intensive to store the failed responses and then 
+    // process them afterwards to save on the creation of the json parser objects
+    return processResponse(response.first, response.second);
+}
+
+/**
+ * If the request failed then update the text area with an error message
+ */
+bool App::processResponse(int code, std::string body) {    
     bool result = false;
-    switch (response.first) {
+   
+    switch (code) {
         case 204:
+            // excellent - nothing todo as there is not response body to have to process.
 #ifdef DEBUG
             m_qtapp->printToTextArea("Audit log message created ");
 #endif
             result = true;
             break;
         case 200:
+#ifdef DEBUG            
             m_qtapp->printToTextArea("Audit log message created "); // would only get this for a request to / by GET
-            break;            
+#endif
+            break;
         case 400:
+            // Huston we have a problem.  Find out what type of error it was an let the user know.
             m_qtapp->printToTextArea("Audit log message NOT created because: ");
-            m_qtapp->printToTextArea(" ");
+            m_qtapp->printToTextArea(App::getErrorMessageFromResponseJson(body));
             break;            
         case 405:
             break;
         default: // code received that's not part of the interface
-            m_qtapp->printToTextArea("Unknown error has occurred ");
+            m_qtapp->printToTextArea("Unknown error has occurred. ");
     }
     
     return result;
 }
+
+/**
+ * Get turn the body into a Json object and extract error information
+ * 
+ * Yuk - there must be an easier way to parse json objects
+ */
+std::string App::getErrorMessageFromResponseJson(std::string body) {
+    QJsonParseError *json_error = new QJsonParseError();
+    QJsonDocument json_response = QJsonDocument::fromJson(QByteArray::fromStdString(body), json_error);
+    if (json_response.isNull()) {
+        // received json document failed to parse/validate
+        std::string parser_error = json_error->errorString().toStdString();
+    }
+
+    // tidy up the heap
+    delete json_error;
+
+    if ( ! json_response.isObject()) {
+        // The data transfer format says the that the top most document element 
+        // must be an Object not an Array
+        
+        // @todo some error handling for the error handling
+        return "";
+    }
+
+    std::string tmp = ""; // build up an error message
+
+    // if validation_errors is defined (double negative ! undefined ;)
+    if ( ! json_response.object().value(QString("validation_errors")).isUndefined() )  {
+        if (json_response.object().value(QString("validation_errors")).isObject()) {
+            
+            QJsonObject verrors = json_response.object().value(QString("validation_errors")).toObject();
+            QStringList vkeys = verrors.keys();
+            
+            std::for_each(vkeys.begin(), vkeys.end(), [&verrors,&tmp] (const QString & key) {
+                
+                tmp += key.toStdString() + " ::  failed validation : \n";
+                
+                if (verrors.value(key).isArray()) {
+                    QJsonArray vkerrors = verrors.value(key).toArray();
+                    
+                    std::for_each(vkerrors.begin(), vkerrors.end(), [&tmp] (const QJsonValue & message) {
+                        tmp += "\t - " + message.toString().toStdString() + "\n";
+                    });
+                }
+            });
+        }
+    }
+
+    // if database_errors is defined (double negative ! undefined ;)
+    if ( ! json_response.object().value(QString("database_errors")).isUndefined()) {
+        if (json_response.object().value(QString("database_errors")).isObject()) {
+            
+            tmp += "Database error : \n";
+            
+            // if database_errors.query is defined (double negative ! undefined ;)
+            if ( ! json_response.object().value(QString("database_errors")).toObject().value(QString("query")).isUndefined() ) {
+                tmp += "\t - The query failed to execute - The product or customer provided doesn't exist.  Check your device configuration. \n";
+            }
+            
+            // if database_errors.statement is defined (double negative ! undefined ;)
+            if ( ! json_response.object().value(QString("database_errors")).toObject().value(QString("statement")).isUndefined() ) { 
+                tmp += "\t - There was a problem prior to executing your update.  The developers have gone an dropped the ball! \n";
+            }
+        }
+    }
+    
+    return tmp;
+}
+

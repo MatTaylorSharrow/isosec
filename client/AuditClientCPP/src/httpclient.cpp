@@ -1,7 +1,5 @@
 #include "httpclient.h"
 
-
-
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
@@ -11,6 +9,7 @@
 #include <boost/asio/ip/tcp.hpp>
 
 using tcp = boost::asio::ip::tcp;       // type alias
+
 
 
 HttpClient::HttpClient() :
@@ -29,9 +28,13 @@ HttpClient::HttpClient(const std::string & host, const std::string & port) :
 
 HttpClient::~HttpClient()
 {
+    m_app = nullptr;
     closeConnection();
 }
 
+void HttpClient::setup(App * app){
+    m_app = app; 
+}
 
 /**
  * Make a connection to a remote server through a socket
@@ -39,7 +42,9 @@ HttpClient::~HttpClient()
 void HttpClient::makeConnection(const std::string & host, const std::string & port) 
 {
     m_host = host;
-    boost::asio::connect(m_socket, m_resolver.resolve(host, port));                // Look up the domain name and make the connection on the IP address we get from the lookup
+    
+    // Look up the domain name and make the connection on the IP address we get from the lookup
+    boost::asio::connect(m_socket, m_resolver.resolve(host, port));
 }
 
 /**
@@ -71,18 +76,14 @@ void HttpClient::sendRequest(const std::string & target, const std::string & pay
     req.set(boost::beast::http::field::host, m_host);
     req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
     req.set(boost::beast::http::field::content_type, "application/json");
-    /*
-    req.set(boost::beast::http::field::connection, "keep-alive");
-    req.set(boost::beast::http::field::keep_alive, "timeout=3, max=1000");
-    */
     
-    req.body() = payload; //json_doc.toJson().toStdString();
+    req.body() = payload;
     req.prepare_payload();
 #ifdef DEBUG
-    m_qtapp->printToTextArea(payload);
+    m_app->printToTextArea(payload);
 #endif
 
-    boost::beast::http::write(m_socket, req);                                     // Send the HTTP request to the remote host
+    boost::beast::http::write(m_socket, req);                                   // Send the HTTP request to the remote host
 }
 
 /**
@@ -94,11 +95,12 @@ std::pair<int, std::string> HttpClient::getResponse()
 {
     boost::beast::flat_buffer buffer;                                           // This buffer is used for reading and must be persisted
     boost::beast::http::response<boost::beast::http::dynamic_body> resp;        // Declare a container to hold the response
-    boost::beast::http::read(m_socket, buffer, resp);                             // Receive the HTTP response
+    boost::beast::http::read(m_socket, buffer, resp);                           // Receive the HTTP response
 
     std::string res_string = boost::beast::buffers_to_string(resp.body().data());
+
 #ifdef DEBUG
-    m_qtapp->printToTextArea(res_string);
+    m_app->printToTextArea(res_string);
 #endif
     
     return std::make_pair(resp.result_int(), res_string);

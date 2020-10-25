@@ -6,10 +6,11 @@
 
 #include <boost/uuid/uuid.hpp>
 
-#include "httpclient.h"
+//#include "httpclient.h"
 
 // forward declarations
 class AuditClientCPP;
+class HttpClient;
 namespace Ui {
 class AuditClientCPP;
 }
@@ -36,16 +37,20 @@ public:
     void emitStampede();
     void generateDeviceIds();
     
+    void printToTextArea(std::string s);
+    
 private:
     void populateRandoms(QVector<quint32> &vec, int qty, quint32 lo, quint32 hi);
     bool sendAudit(std::string customer, std::string product, std::string device_id);
+    bool processResponse(int code, std::string body);
+    std::string getErrorMessageFromResponseJson(std::string body);
     
     AuditClientCPP * m_qtapp;
     std::shared_ptr<HttpClient> m_httpclient;
     
     std::vector<boost::uuids::uuid> m_deviceids; 
-    std::vector<std::string> m_products  = {"IA" , "KPI", "MP" , "PR" , "SSO", "VS" , "BAD"};
-    std::vector<std::string> m_customers = {"AUD", "BMW", "KIA", "REN", "SEA", "VOL", "BAD"};
+    std::vector<std::string> m_products  = {"IA" , "KPI", "MP" , "PR" , "SSO", "VS" , "BAD"   , "BADER"};
+    std::vector<std::string> m_customers = {"AUD", "BMW", "KIA", "REN", "SEA", "VOL", "BADEST", "DAB"};
     
     
     std::string const m_host = "api.isosec.com";

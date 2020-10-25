@@ -41,6 +41,6 @@ void AuditClientCPP::on_simulateStampedeButton_clicked()
  */
 void AuditClientCPP::on_simulateQueueButton_clicked()
 {
-    m_ui->centralwidget->setStyleSheet("background-color:yellow;");
+    m_ui->textEdit->insertPlainText(QString::fromStdString("Oi, stop it! Unimplemented. \n"));
 }
 
