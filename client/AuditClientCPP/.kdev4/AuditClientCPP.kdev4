@@ -1,6 +1,9 @@
+[Buildset]
+BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x1c\x00A\x00u\x00d\x00i\x00t\x00C\x00l\x00i\x00e\x00n\x00t\x00C\x00P\x00P)
+
 [CMake]
-Build Directory Count=1
-Current Build Directory Index-Host System=0
+Build Directory Count=2
+Current Build Directory Index-Host System=1
 
 [CMake][CMake Build Directory 0]
 Build Directory Path=/home/matthew/workspace/SharrowSoftware/Isosec-interview-trial/isosec/client/AuditClientCPP/build
@@ -12,26 +15,58 @@ Extra Arguments=
 Install Directory=
 Runtime=Host System
 
+[CMake][CMake Build Directory 1]
+Build Directory Path=/home/matthew/workspace/SharrowSoftware/Isosec-interview-trial/isosec/client/AuditClientCPP/build-linux-x86-64-gcc10-std20-
+Build Type=Debug\n
+CMake Binary=/usr/bin/cmake
+CMake Executable=/usr/bin/cmake
+Environment Profile=
+Extra Arguments=
+Install Directory=/usr/local
+Runtime=Host System
+
+[CustomDefinesAndIncludes][ProjectPath0]
+Path=.
+parseAmbiguousAsCPP=true
+parserArguments=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c++17
+parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c99
+parserArgumentsCuda=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c++11
+parserArgumentsOpenCL=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -cl-std=CL1.1
+
+[CustomDefinesAndIncludes][ProjectPath0][Compiler]
+Name=G++ 10 (ccache)
+
 [Launch]
 Launch Configurations=Launch Configuration 0
 
 [Launch][Launch Configuration 0]
 Configured Launch Modes=execute
 Configured Launchers=nativeAppLauncher
-Name=New Compiled Binary Launcher (2)
+Name=Linux GCC Build
 Type=Native Application
 
 [Launch][Launch Configuration 0][Data]
 Arguments=
+Debugger Shell=
 Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
-Dependency Action=Nothing
+Dependency Action=Build
+Display Demangle Names=true
+Display Static Members=false
 EnvironmentGroup=
 Executable=file:///home/matthew/workspace/SharrowSoftware/Isosec-interview-trial/isosec/client/AuditClientCPP
 External Terminal=konsole --noclose --workdir %workdir -e %exe
+GDB Path=
 Project Target=AuditClientCPP,auditclientcpp
+Remote GDB Config Script=
+Remote GDB Run Script=
+Remote GDB Shell Script=
+Start With=ApplicationOutput
 Use External Terminal=false
 Working Directory=
 isExecutable=false
 
 [Project]
 VersionControlSupport=
+
+[SourceFileTemplates]
+LastUsedTemplate=/home/matthew/.local/share/kdevfiletemplates/template_descriptions/cpp_basic.desktop
