@@ -17,7 +17,7 @@ Runtime=Host System
 
 [CMake][CMake Build Directory 1]
 Build Directory Path=/home/matthew/workspace/SharrowSoftware/Isosec-interview-trial/isosec/client/AuditClientCPP/build-linux-x86-64-gcc10-std20-
-Build Type=Debug\n
+Build Type=Debug
 CMake Binary=/usr/bin/cmake
 CMake Executable=/usr/bin/cmake
 Environment Profile=

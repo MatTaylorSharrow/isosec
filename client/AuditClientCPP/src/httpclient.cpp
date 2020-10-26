@@ -1,5 +1,8 @@
 #include "httpclient.h"
 
+#include <string>
+#include <vector>
+
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
@@ -7,6 +10,8 @@
 #include <boost/beast/core/error.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+
+#include "app.h"
 
 using tcp = boost::asio::ip::tcp;       // type alias
 

@@ -1,13 +1,11 @@
 #ifndef HTTPCLIENT_H
 #define HTTPCLIENT_H
 
-#include <string>
-#include <vector>
-
 #include <boost/asio/ip/tcp.hpp>
 using tcp = boost::asio::ip::tcp;       // type alias
 
-#include "app.h"
+// forward declarations
+class App;
 
 /**
  * This is a simple wrapper around the boost::beast classes and calls to provide
@@ -44,7 +42,6 @@ private:
     boost::asio::io_context m_ioc;
     tcp::resolver m_resolver;
     tcp::socket m_socket;
-    
     
     App * m_app;
     
