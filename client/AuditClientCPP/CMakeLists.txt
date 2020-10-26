@@ -11,9 +11,6 @@ set(CMAKE_AUTOUIC ON)
 # Find the QtWidgets library
 find_package(Qt5Widgets CONFIG REQUIRED)
 
-find_package(Boost COMPONENTS system ...)
-
-
 set(auditclientcpp_SRC
   src/main.cpp
   src/auditclientcpp.cpp
@@ -21,8 +18,12 @@ set(auditclientcpp_SRC
   src/httpclient.cpp
 )
 
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Tell CMake to create the helloworld executable
 add_executable(auditclientcpp ${auditclientcpp_SRC})
+
+set_property(TARGET auditclientcpp PROPERTY CXX_STANDARD 17)
 
 # Use the Widgets module from Qt 5.
 target_link_libraries(auditclientcpp Qt5::Widgets)
