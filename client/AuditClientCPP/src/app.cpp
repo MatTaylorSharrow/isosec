@@ -12,6 +12,8 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
+#include <memory>
+
 #include "httpclient.h"
 
 App::App()
@@ -184,15 +186,14 @@ bool App::processResponse(int code, std::string body) {
  * Yuk - there must be an easier way to parse json objects
  */
 std::string App::getErrorMessageFromResponseJson(std::string body) {
-    QJsonParseError *json_error = new QJsonParseError();
-    QJsonDocument json_response = QJsonDocument::fromJson(QByteArray::fromStdString(body), json_error);
+    
+    auto json_error = std::make_shared<QJsonParseError>();
+    
+    QJsonDocument json_response = QJsonDocument::fromJson(QByteArray::fromStdString(body), json_error.get());
     if (json_response.isNull()) {
         // received json document failed to parse/validate
         std::string parser_error = json_error->errorString().toStdString();
     }
-
-    // tidy up the heap
-    delete json_error;
 
     if ( ! json_response.isObject()) {
         // The data transfer format says the that the top most document element 
