@@ -42,8 +42,9 @@ public:
 private:
     // I only wanted m_socket as a member but had to make m_ioc and m_resolver members too
     boost::asio::io_context m_ioc;
-    tcp::socket m_socket;
     tcp::resolver m_resolver;
+    tcp::socket m_socket;
+    
     
     App * m_app;
     
