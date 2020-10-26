@@ -4,11 +4,13 @@
 #include "auditclientcpp.h"
 #include "ui_auditclientcpp.h"
 
-#include <boost/uuid/uuid.hpp>
-
-//#include "httpclient.h"
 
 // forward declarations
+namespace boost {
+    namespace uuids {
+        struct uuid;
+    }
+}
 class AuditClientCPP;
 class HttpClient;
 namespace Ui {
